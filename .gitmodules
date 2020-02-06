@@ -1,0 +1,3 @@
+[submodule "bsred"]
+	path = bsred
+	url = https://github.com/prozacchiwawa/bsred
