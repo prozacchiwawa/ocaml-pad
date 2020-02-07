@@ -249,7 +249,9 @@ let update (model : model) = function (* These should be simple enough to be sel
   | Nop -> model
   | KeyPress evt ->
     passOnKeyPress evt model
-  | ToSelectView -> { model with view = SelectView }
+  | ToSelectView ->
+    let newModel = saveCurrentProgram model in
+    { newModel with view = SelectView }
   | ToCodeView -> { model with view = CodeView }
   | ToExecView -> { model with view = ExecView }
   | NewProject ->
@@ -272,7 +274,7 @@ let update (model : model) = function (* These should be simple enough to be sel
     |> Option.map
       (fun p ->
          let cv =
-           { editing = Editing.init 25 12 p.name p.code ; program = p }
+           { editing = Editing.init 25 13 p.name p.code ; program = p }
          in
          { model with codeview = Some cv ; view = CodeView }
       )
@@ -303,12 +305,14 @@ let update (model : model) = function (* These should be simple enough to be sel
                    ; if_code = "exports = {};\n" ^ Libs.jslibs ^ "require.cache = Object.create(null); //(1)\nfunction require(name) {\nif (!(name in require.cache)) {\nlet code = imports[name]; //(2)\nlet module = {exports: {}}; //(3)\nrequire.cache[name] = module; //(4)\nlet wrapper = Function(\"require, exports, module\", code); //(5)\nwrapper(require, module.exports, module); //(6)\n}\nreturn require.cache[name].exports; //(7)\n}" ^ code
                    }
              }
+
          | (Some errors, _) ->
            let iframecode = "data:text/html;base64," ^ btoa ("<pre>" ^ errors ^ "</pre>") in
-           updateProgram p.name (fun _ -> { p with errors = errors })
+           updateProgram p.name (fun _ -> { p with output = [] ; errors = errors })
              { newModel with
                iframe = Some { if_id = p.name ; if_src = iframecode ; if_code = "" }
              }
+
          | _ -> model
       )
     |> Option.else_ (fun _ -> model)
@@ -363,8 +367,8 @@ let viewSelector model =
   in
   div [ classList [ ("select-view", true) ] ]
     [ div [ classList [ ("select-heading", true) ] ]
-        [ text "Select..."
-        ; button [ onClick NewProject ] [ text "+" ]
+        [ text "Programs"
+        ; button [ classList [ ("plusbut",true) ] ; onClick NewProject ] [ ]
         ]
     ; div [ classList [ ("select-items", true) ] ]
         itemDisplay
@@ -383,21 +387,17 @@ let synthesizeKey t =
 
 let viewEditor model em =
   div []
-    [ div [ classList [ ("editor-controls", true) ] ]
-        [ button
-            [ classList [ ("editor-control-btn", true) ]
-            ; onClick SaveProgram
-            ] [ text "Save" ]
-        ; button
-            [ classList [ ("editor-control-btn", true) ]
-            ; onClick (ExecProgram em.program.name)
-            ] [ text "Run" ]
-        ; button [ classList [ ("homebut", true) ] ; onClick Home ] [ ]
-        ; button [ classList [ ("leftbut", true) ] ; onClick LeftArrow ] [ ]
-        ; button [ classList [ ("upbut", true) ] ; onClick UpArrow ] [ ]
-        ; button [ classList [ ("downbut", true) ] ; onClick DownArrow ] [ ]
-        ; button [ classList [ ("rightbut", true) ] ; onClick RightArrow ] [ ]
-        ; button [ classList [ ("endbut", true) ] ; onClick End ] [ ]
+    [ div [ classList [ ("editor-controls-container", true) ] ]
+        [ div [ classList [ ("editor-controls", true) ] ]
+            [ button
+                [ classList [ ("ebut",true) ; ("editor-control-btn", true) ]
+                ; onClick SaveProgram
+                ] [ text "Save" ]
+            ; button
+                [ classList [ ("ebut",true) ; ("editor-control-btn", true) ]
+                ; onClick (ExecProgram em.program.name)
+                ] [ text "Run" ]
+            ]
         ]
     ; div
         [ classList [ ("editor-pane", true) ] ]
@@ -416,6 +416,16 @@ let viewEditor model em =
             ; onInput (fun t -> synthesizeKey t)
             ] []
         ]
+    ; div [ classList [ ("editor-controls-container",true) ] ]
+        [ div [ classList [ ("editor-controls", true) ] ]
+            [ button [ classList [ ("kbut",true) ; ("homebut", true) ] ; onClick Home ] [ ]
+            ; button [ classList [ ("kbut",true) ; ("leftbut", true) ] ; onClick LeftArrow ] [ ]
+            ; button [ classList [ ("kbut",true) ; ("upbut", true) ] ; onClick UpArrow ] [ ]
+            ; button [ classList [ ("kbut",true) ; ("downbut", true) ] ; onClick DownArrow ] [ ]
+            ; button [ classList [ ("kbut",true) ; ("rightbut", true) ] ; onClick RightArrow ] [ ]
+            ; button [ classList [ ("kbut",true) ; ("endbut", true) ] ; onClick End ] [ ]
+            ]
+        ]
     ; div [ classList [ ("editor-errors", true) ] ]
         [ text em.program.errors ]
     ]
@@ -430,33 +440,33 @@ let viewRun model ev =
   in
   div []
     [ div [ classList [ ("exec-title", true) ] ]
-        [ button [ classList [ ("exec-title-button", true) ] ; onClick ToCodeView ]
-            [ text "Return" ]
-        ; text "Run"
+        [ text ("Running ... " ^ ev.program.name)
         ]
     ; div [ classList [ ("exec-display", true) ] ]
-        (execEvents |> List.map (fun line -> div [] [ text line ]))
+        (execEvents |> List.map (fun line -> div [] [ text line ]) |> List.rev)
     ]
 
 let viewBreadcrumbs model =
   let editor_showing = model.codeview <> None in
   let runner_showing = model.iframe <> None in
-  div []
-    [ button
-        [ classList [ ("nav-button", true) ; ("nav-enabled", true) ]
-        ; onClick ToSelectView
+  div [ classList [ ("nav-container", true) ] ]
+    [ div [ classList [ ("nav-list", true) ] ]
+        [ button
+            [ classList [ ("nav-button", true) ; ("nav-enabled", true) ]
+            ; onClick ToSelectView
+            ]
+            [ text "Main" ]
+        ; button
+            [ classList [ ("nav-button", true) ; ("nav-enabled", editor_showing) ]
+            ; onClick ToCodeView
+            ]
+            [ text "Editor" ]
+        ; button
+            [ classList [ ("nav-button", true) ; ("nav-enabled", runner_showing) ]
+            ; onClick ToExecView
+            ]
+            [ text "Runner" ]
         ]
-        [ text "Main" ]
-    ; button
-        [ classList [ ("nav-button", true) ; ("nav-enabled", editor_showing) ]
-        ; onClick ToCodeView
-        ]
-        [ text "Editor" ]
-    ; button
-        [ classList [ ("nav-button", true) ; ("nav-enabled", runner_showing) ]
-        ; onClick ToExecView
-        ]
-        [ text "Runner" ]
     ]
 
 (* This is the main callback to generate the virtual-dom.

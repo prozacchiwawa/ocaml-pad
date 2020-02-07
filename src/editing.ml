@@ -283,7 +283,7 @@ let render model =
   div [ id "editor" ; classList [ ("editor", true) ] ]
     (List.concat
        [ Array.to_list resultDivs
-       ; [ text model.lastkey ]
+       (*       ; [ text model.lastkey ] *)
        ]
     )
 
@@ -296,7 +296,7 @@ let resize rpt editing =
   let e =
     { editing with
       editor = editing.editor
-    ; frame = Render.new_frame x y
+    ; frame = Render.new_frame x (y - 1)
     }
   in
   let _ = Render.render e.frame in

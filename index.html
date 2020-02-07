@@ -1,6 +1,7 @@
 <html>
     <head>
         <title>BS Easy</title>
+        <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
          body {
@@ -27,10 +28,67 @@
          .fg-white { color: #ccc; }
          .fg-black { color: black; }
 
-         .nav-button {
-             
+         .nav-container {
+             display: flex;
+             flex-direction: column;
+             align-items: center;
+             justify-content: center;
+         }
+         
+         .nav-list {
+             position: relative;
+             display: flex;
+             flex-direction: row;
+             font-size: 2rem;
+             align-items: center;
+             justify-content: center;
+             width: 100%;
          }
 
+         .nav-enabled {
+             color: #aabbcc;
+         }
+
+         .plusbut {
+             border-radius: 50%;
+             position: relative;
+             background-color: #abc;
+             color: black;
+             height: 1.5rem;
+             width: 1.5rem;
+             border: 0;
+             margin-left: 1rem;
+         }
+
+         .plusbut:after {
+             content: "+";
+             position: relative;
+             top: -0.05rem;
+         }
+
+         .select-heading {
+             font-family: sans-serif;
+             font-size: 1rem;
+             margin: 1rem;
+         }
+         
+         .nav-button {
+             margin: 1rem;
+             border: 0;
+             background: #333;
+             flex-grow: 1;
+             padding: 0.5rem;
+         }
+
+         .select-button {
+             margin: 1rem;
+             border: 0;
+             background: #333;
+             flex-grow: 1;
+             padding: 0.5rem;
+             color: #abc;
+         }
+         
          .editor {
          }
 
@@ -79,8 +137,38 @@
              opacity: 1%;
          }
 
+         .editor-controls-container {
+             display: flex;
+             flex-direction: column;
+             align-items: center;
+             justify-content: center;
+         }
+
+         .editor-controls {
+             display: flex;
+             flex-direction: row;
+         }
+
+         .editor-control-btn {
+             font-size: 1rem;
+             color: #abc;
+             border: 0;
+             background-color: #333;
+             padding: 0.5rem;
+             flex-grow: 1;
+             margin-left: 1rem;
+             margin-right: 1rem;
+         }
+         
+         .kbut {
+             padding: 0.5rem;
+             margin: 0.5rem;
+             border: 0;
+             background-color: #333;
+         }
+         
          .homebut:after {
-             content: "⭰";
+             content: "H";
          }
          
          .leftbut:after {
@@ -100,7 +188,7 @@
          }
 
          .endbut:after {
-             content: "⭲";
+             content: "E";
          }
         </style>
     </head>
