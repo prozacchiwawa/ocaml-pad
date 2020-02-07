@@ -2,6 +2,7 @@ open Tea.Html
 
 open Runedit
 open Keyevent
+open Resize
 
 module StringMap = Map.Make(String)
 module StringSet = Set.Make(String)
@@ -9,6 +10,7 @@ module StringSet = Set.Make(String)
 type t =
   { editor : State.t
   ; frame : Render.frame
+  ; lastkey : string
   }
 
 let keymap =
@@ -198,17 +200,17 @@ let accept_key evt editing =
     with _ ->
       None
   in
-  let _ =
-    match finalKey with
-    | Some k -> ignore (State.on_key_press editing.editor k)
-    | _ -> ()
-  in
-  editing
+  match finalKey with
+  | Some k ->
+    let _ = ignore (State.on_key_press editing.editor k) in
+    { editing with lastkey = Key.show k }
+  | _ -> editing
 
 let init x y name text =
   let e =
     { editor = Main.edit name text
     ; frame = Render.new_frame x y
+    ; lastkey = ""
     }
   in
   let _ = Render.render e.frame in
@@ -278,7 +280,27 @@ let render model =
          div [ classList [ ("editor-row", true) ] ] (List.map (fun (st,txt) -> pre [ classList [ ("tseg", true) ; ("bg-" ^ (bgColor st.Style.bg)), true ; ("fg-" ^ (fgColor st.Style.fg)), true ] ] [ text txt ]) finalRes)
       )
   in
-  div [ classList [ ("editor", true) ] ] (Array.to_list resultDivs)
+  div [ id "editor" ; classList [ ("editor", true) ] ]
+    (List.concat
+       [ Array.to_list resultDivs
+       ; [ text model.lastkey ]
+       ]
+    )
+
+let resize rpt editing =
+  let fontWidth = rpt.editorX / editing.frame.planeWidth in
+  let fontHeight = rpt.editorY in
+  let x = rpt.windowX / fontWidth in
+  let y = rpt.windowY / fontHeight in
+  let _ = Js.log (x,y) in
+  let e =
+    { editing with
+      editor = editing.editor
+    ; frame = Render.new_frame x y
+    }
+  in
+  let _ = Render.render e.frame in
+  e
 
 let to_string name editing =
   match List.filter (fun (f : File.t) -> f.name = name) editing.editor.files with

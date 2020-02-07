@@ -8,6 +8,7 @@ open Tea.Json
 open Basic
 open Keyevent
 open Runedit
+open Resize
 
 type ocaml
 type compileResult
@@ -29,6 +30,37 @@ external localStorage : localStorage = "localStorage" [@@bs.val]
 external ls_get : localStorage -> string -> string = "getItem" [@@bs.send]
 external ls_set : localStorage -> string -> string -> unit = "setItem" [@@bs.send]
 
+(* Let's create a new type here to be our main message type that is passed around *)
+type msg =
+  | Nop
+  | ToSelectView
+  | ToCodeView
+  | ToExecView
+  | NewProject
+  | KeyPress of keyEvent
+  | ShowCode of string
+  | SaveProgram
+  | ExecProgram of string
+  | StartedProgram
+  | OutputLine of string
+  | SizeReport of resizeData
+  | DeleteProgram of string
+
+  | Home
+  | End
+  | LeftArrow
+  | RightArrow
+  | DownArrow
+  | UpArrow
+  [@@bs.deriving {accessors}] (* This is a nice quality-of-life addon from Bucklescript, it will generate function names for each constructor name, optional, but nice to cut down on code, this is unused in this example but good to have regardless *)
+
+type shareData
+
+external shareData : shareData = "window.shareData" [@@bs.val]
+external setMsgEncoder : shareData -> (Js.Json.t -> msg) -> unit = "setMsgEncoder" [@@bs.send]
+external pokeProgram : shareData -> string -> string -> unit = "pokeProgram" [@@bs.send]
+external resizeWindow : shareData -> string -> unit = "resizeWindow" [@@bs.send]
+
 let decodeStringArray j : string list =
   j
   |> Js.Json.decodeArray
@@ -44,23 +76,6 @@ let compile_error res =
   |> compile_error_
   |> Js.Json.decodeString
 
-(* Let's create a new type here to be our main message type that is passed around *)
-type msg =
-  | Nop
-  | ToSelectView
-  | ToCodeView
-  | ToExecView
-  | NewProject
-  | KeyPress of keyEvent
-  | ShowCode of string
-  | SaveProgram
-  | ExecProgram of string
-  [@@bs.deriving {accessors}] (* This is a nice quality-of-life addon from Bucklescript, it will generate function names for each constructor name, optional, but nice to cut down on code, this is unused in this example but good to have regardless *)
-
-type execModel =
-  { foo : int
-  }
-
 type program =
   { code : string
   ; name : string
@@ -70,7 +85,6 @@ type program =
 
 type editModel =
   { editing : Editing.t
-  ; execview : execModel option
   ; program : program
   }
 
@@ -79,11 +93,17 @@ type viewKind =
   | CodeView
   | ExecView
 
+type iframeData =
+  { if_id : string
+  ; if_src : string
+  ; if_code : string
+  }
+
 type model =
   { view : viewKind
   ; codeview : editModel option
   ; programs : program StringMap.t
-  ; iframe : (string * string) option
+  ; iframe : iframeData option
   }
 
 let getProgram name =
@@ -150,6 +170,31 @@ let init () =
     ; iframe = None
     }
   in
+  let _ =
+    setMsgEncoder shareData
+      (fun d ->
+         let obj = Js.Json.decodeObject d in
+         let message =
+           obj
+           |> Option.bind (fun o -> Js.Dict.get o "message")
+           |> Option.bind Js.Json.decodeString
+         in
+         let data =
+           obj
+           |> Option.bind (fun o -> Js.Dict.get o "data")
+           |> Option.bind Js.Json.decodeString
+         in
+         let rect = obj |> Option.bind decodeSizeReport in
+         match (message, data, rect) with
+         | (Some "started", _, _) -> StartedProgram
+         | (Some "output", Some value, _) -> OutputLine value
+         | (Some "size", _, Some size) ->
+           let rpt = SizeReport size in
+           let _ = Js.log rpt in
+           rpt
+         | _ -> Nop
+      )
+  in
   model
 
 let passOnKeyPress evt model =
@@ -187,6 +232,18 @@ let saveCurrentProgram model =
     )
   |> Option.else_ (fun _ -> model)
 
+let passOnKeyCode code model =
+  let event =
+    { ctrlKey = false
+    ; altKey = false
+    ; shiftKey = false
+    ; key = ""
+    ; keyCode = code
+    }
+  in
+  passOnKeyPress event model
+
+
 (* This is the central message handler, it takes the model as the first argument *)
 let update (model : model) = function (* These should be simple enough to be self-explanatory, mutate the model based on the message, easy to read and follow *)
   | Nop -> model
@@ -199,7 +256,7 @@ let update (model : model) = function (* These should be simple enough to be sel
     let newName = Namegen.generateRandomName 4 in
     let program =
       { name = newName
-      ; code = "(* New program *)\nlet x = 42\n"
+      ; code = "(* New program *)\nlet print_endline : string -> unit = [%bs.raw {| function(s) { window.parent.postMessage({'message':'output','data':s}, '*'); } |} ]\nlet x = 42\n"
       ; errors = ""
       ; output = []
       }
@@ -209,12 +266,13 @@ let update (model : model) = function (* These should be simple enough to be sel
     let _ = saveProgramList newPrograms in
     { model with programs = newPrograms }
   | ShowCode prog ->
+    let _ = resizeWindow shareData "editor" in
     let prog = StringFindMap.go prog model.programs in
     prog
     |> Option.map
       (fun p ->
          let cv =
-           { editing = Editing.init 10 10 p.name p.code ; execview = None ; program = p }
+           { editing = Editing.init 25 12 p.name p.code ; program = p }
          in
          { model with codeview = Some cv ; view = CodeView }
       )
@@ -232,20 +290,56 @@ let update (model : model) = function (* These should be simple enough to be sel
          let _ = Js.log got_errors in
          match (got_errors, got_code) with
          | (_, Some code) ->
-           let iframecode = "data:text/html;base64," ^ btoa ("<pre>" ^ code ^ "</pre>") in
+           (* Thanks : https://michelenasti.com/2018/10/02/let-s-write-a-simple-version-of-the-require-function.html *)
+           let iframecode = "data:text/html;base64," ^ btoa ("<script>window.parent.postMessage({'message':'started'}, '*'); window.addEventListener('message', function(m) { if(m.data.message === 'runme') { eval(m.data.code); } });</script>")
+           in
            updateProgram p.name (fun _ -> { p with output = [] ; errors = "" })
              { newModel with
-               iframe = Some (p.name, iframecode)
+               view = ExecView
+             ; iframe =
+                 Some
+                   { if_id = p.name
+                   ; if_src = iframecode
+                   ; if_code = "exports = {};\n" ^ Libs.jslibs ^ "require.cache = Object.create(null); //(1)\nfunction require(name) {\nif (!(name in require.cache)) {\nlet code = imports[name]; //(2)\nlet module = {exports: {}}; //(3)\nrequire.cache[name] = module; //(4)\nlet wrapper = Function(\"require, exports, module\", code); //(5)\nwrapper(require, module.exports, module); //(6)\n}\nreturn require.cache[name].exports; //(7)\n}" ^ code
+                   }
              }
          | (Some errors, _) ->
            let iframecode = "data:text/html;base64," ^ btoa ("<pre>" ^ errors ^ "</pre>") in
            updateProgram p.name (fun _ -> { p with errors = errors })
              { newModel with
-               iframe = Some (p.name, iframecode)
+               iframe = Some { if_id = p.name ; if_src = iframecode ; if_code = "" }
              }
          | _ -> model
       )
     |> Option.else_ (fun _ -> model)
+  | StartedProgram ->
+    model.iframe
+    |> Option.map
+      (fun iframe ->
+         let _ = pokeProgram shareData iframe.if_id iframe.if_code in
+         model
+      )
+    |> Option.else_ (fun _ -> model)
+  | OutputLine o ->
+    model.iframe
+    |> Option.map
+      (fun iframe ->
+         updateProgram iframe.if_id (fun p -> { p with output = o :: p.output }) model
+      )
+    |> Option.else_ (fun _ -> model)
+  | SizeReport rpt ->
+    model.codeview
+    |> Option.map
+      (fun cv ->
+         { model with codeview = Some { cv with editing = Editing.resize rpt cv.editing } }
+      )
+    |> Option.else_ (fun _ -> model)
+  | End -> passOnKeyCode 35 model
+  | Home -> passOnKeyCode 36 model
+  | LeftArrow -> passOnKeyCode 37 model
+  | UpArrow -> passOnKeyCode 38 model
+  | RightArrow -> passOnKeyCode 39 model
+  | DownArrow -> passOnKeyCode 40 model
 
 (* This is just a helper function for the view, a simple function that returns a button based on some argument *)
 let view_button title msg =
@@ -276,40 +370,64 @@ let viewSelector model =
         itemDisplay
     ]
 
-let runningProgram model = model.iframe |> Option.map (fun (n,_) -> n)
+let runningProgram model = model.iframe |> Option.map (fun iframe -> iframe.if_id)
+
+let synthesizeKey t =
+  KeyPress
+    { ctrlKey = false
+    ; altKey = false
+    ; shiftKey = false
+    ; key = String.sub t ((String.length t) - 1) 1
+    ; keyCode = 0
+    }
 
 let viewEditor model em =
   div []
-    [ div
-        [ classList [ ("editor-pane", true) ] ]
-        [ Editing.render em.editing
-        ; input'
-            [ classList [ ("input-in-container", true) ]
-            ; onWithOptions ~key:"keydown" "keydown"
-                { stopPropagation = true ; preventDefault = true }
-                (Keyevent.key_decoder |> Decoder.map (fun a -> KeyPress a))
-            ] []
-        ]
-    ; div [ classList [ ("editor-errors", true) ] ]
-        [ text em.program.errors ]
-    ; div [ classList [ ("editor-controls", true) ] ]
+    [ div [ classList [ ("editor-controls", true) ] ]
         [ button
             [ classList [ ("editor-control-btn", true) ]
             ; onClick SaveProgram
             ] [ text "Save" ]
         ; button
             [ classList [ ("editor-control-btn", true) ]
-            ; onClick ToSelectView
-            ] [ text "Main" ]
-        ; button
-            [ classList [ ("editor-control-btn", true) ]
-            ; onClick (if runningProgram model <> Some em.program.name then ExecProgram em.program.name else ToExecView)
+            ; onClick (ExecProgram em.program.name)
             ] [ text "Run" ]
+        ; button [ classList [ ("homebut", true) ] ; onClick Home ] [ ]
+        ; button [ classList [ ("leftbut", true) ] ; onClick LeftArrow ] [ ]
+        ; button [ classList [ ("upbut", true) ] ; onClick UpArrow ] [ ]
+        ; button [ classList [ ("downbut", true) ] ; onClick DownArrow ] [ ]
+        ; button [ classList [ ("rightbut", true) ] ; onClick RightArrow ] [ ]
+        ; button [ classList [ ("endbut", true) ] ; onClick End ] [ ]
         ]
+    ; div
+        [ classList [ ("editor-pane", true) ] ]
+        [ Editing.render em.editing
+        ; input'
+            [ classList [ ("input-in-container", true) ]
+            ; type' "text"
+            ; value ""
+            ; Vdom.prop "pattern" "^$"
+            ; Vdom.prop "readonly" "true"
+            ; Vdom.prop "maxlength" "0"
+            ; Vdom.prop "autocomplete" "off"
+            ; onWithOptions ~key:"keydown" "keydown"
+                { stopPropagation = true ; preventDefault = true }
+                (Keyevent.key_decoder |> Decoder.map (fun a -> KeyPress a))
+            ; onInput (fun t -> synthesizeKey t)
+            ] []
+        ]
+    ; div [ classList [ ("editor-errors", true) ] ]
+        [ text em.program.errors ]
     ]
 
 let viewRun model ev =
-  let execEvents = [] in
+  let execEvents =
+    model.iframe
+    |> Option.map (fun iframe -> iframe.if_id)
+    |> Option.bind (fun id -> StringFindMap.go id model.programs)
+    |> Option.map (fun p -> p.output)
+    |> Option.else_ (fun _ -> [])
+  in
   div []
     [ div [ classList [ ("exec-title", true) ] ]
         [ button [ classList [ ("exec-title-button", true) ] ; onClick ToCodeView ]
@@ -317,7 +435,28 @@ let viewRun model ev =
         ; text "Run"
         ]
     ; div [ classList [ ("exec-display", true) ] ]
-        execEvents
+        (execEvents |> List.map (fun line -> div [] [ text line ]))
+    ]
+
+let viewBreadcrumbs model =
+  let editor_showing = model.codeview <> None in
+  let runner_showing = model.iframe <> None in
+  div []
+    [ button
+        [ classList [ ("nav-button", true) ; ("nav-enabled", true) ]
+        ; onClick ToSelectView
+        ]
+        [ text "Main" ]
+    ; button
+        [ classList [ ("nav-button", true) ; ("nav-enabled", editor_showing) ]
+        ; onClick ToCodeView
+        ]
+        [ text "Editor" ]
+    ; button
+        [ classList [ ("nav-button", true) ; ("nav-enabled", runner_showing) ]
+        ; onClick ToExecView
+        ]
+        [ text "Runner" ]
     ]
 
 (* This is the main callback to generate the virtual-dom.
@@ -325,19 +464,21 @@ let viewRun model ev =
 let view model =
   div []
     [ model.iframe
-      |> Option.map (fun (name,data) -> iframe [ id name ; src data ] [])
+      |> Option.map (fun ifdata -> iframe [ id ifdata.if_id ; src ifdata.if_src ; classList [ ("iframe-style", true) ] ] [])
       |> Option.else_ (fun _ -> div [] [])
-    ; match model.view with
-    | SelectView -> viewSelector model
-    | CodeView ->
-      model.codeview
-      |> Option.map (viewEditor model)
-      |> Option.else_ (fun _ -> viewSelector model)
-    | ExecView ->
-      model.codeview
-      |> Option.bind (fun cv -> cv.execview)
-      |> Option.map (viewRun model)
-      |> Option.else_ (fun _ -> viewSelector model)
+    ; div []
+        [ viewBreadcrumbs model
+        ; match model.view with
+          | SelectView -> viewSelector model
+          | CodeView ->
+            model.codeview
+            |> Option.map (viewEditor model)
+            |> Option.else_ (fun _ -> viewSelector model)
+          | ExecView ->
+            model.codeview
+            |> Option.map (viewRun model)
+            |> Option.else_ (fun _ -> viewSelector model)
+        ]
     ]
 
 (* This is the main function, it can be named anything you want but `main` is traditional.

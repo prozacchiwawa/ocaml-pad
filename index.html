@@ -1,7 +1,16 @@
 <html>
     <head>
         <title>BS Easy</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
+         body {
+             margin: 0;
+             padding: 0;
+             background: black;
+             color: white;
+             box-sizing: border-box;
+         }
+
          .tseg {
              font-family: monospace;
              font-size: 1rem;
@@ -18,9 +27,11 @@
          .fg-white { color: #ccc; }
          .fg-black { color: black; }
 
+         .nav-button {
+             
+         }
+
          .editor {
-             display: flex;
-             flex-direction: column;
          }
 
          .editor-pane {
@@ -37,12 +48,24 @@
              flex-direction: column;
          }
 
+         .editor-tile {
+         }
+
          .editor-row {
              display: flex;
              flex-direction: row;
-             max-height: 1.3rem;
+             position: relative;
              margin: 0;
              padding: 0;
+         }
+
+         .iframe-style {
+             display: flex;
+             position: absolute;
+             left: -100px;
+             right: -100px;
+             height: 1px;
+             width: 1px;
          }
 
          .input-in-container {
@@ -54,6 +77,30 @@
              margin: 0;
              padding: 0;
              opacity: 1%;
+         }
+
+         .homebut:after {
+             content: "⭰";
+         }
+         
+         .leftbut:after {
+             content:  "⬅";
+         }
+
+         .rightbut:after {
+             content: "➡";
+         }
+
+         .upbut:after {
+             content: "⬆";
+         }
+
+         .downbut:after {
+             content: "⬇";
+         }
+
+         .endbut:after {
+             content: "⭲";
          }
         </style>
     </head>
