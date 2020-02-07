@@ -292,11 +292,10 @@ let resize rpt editing =
   let fontHeight = rpt.editorY in
   let x = rpt.windowX / fontWidth in
   let y = rpt.windowY / fontHeight in
-  let _ = Js.log (x,y) in
   let e =
     { editing with
       editor = editing.editor
-    ; frame = Render.new_frame x (y - 1)
+    ; frame = Render.new_frame x y
     }
   in
   let _ = Render.render e.frame in
