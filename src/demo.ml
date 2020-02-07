@@ -20,7 +20,7 @@ module StringUpdateMap = UpdateMap(Runedit.S)
 external ocaml : ocaml = "ocaml" [@@bs.val]
 external compile : ocaml -> string -> compileResult = "compile" [@@bs.send]
 external compiled_js_code_ : compileResult -> Js.Json.t = "js_code" [@@bs.get]
-external compile_error_ : compileResult -> Js.Json.t = "error" [@@bs.get]
+external compile_error_ : compileResult -> Js.Json.t = "js_error_msg" [@@bs.get]
 
 external atob : string -> string = "atob" [@@bs.val]
 external btoa : string -> string = "btoa" [@@bs.val]
@@ -42,7 +42,7 @@ let compiled_js_code res = res |> compiled_js_code_ |> Js.Json.decodeString
 let compile_error res =
   res
   |> compile_error_
-  |> decodeStringArray
+  |> Js.Json.decodeString
 
 (* Let's create a new type here to be our main message type that is passed around *)
 type msg =
@@ -64,7 +64,7 @@ type execModel =
 type program =
   { code : string
   ; name : string
-  ; errors : string list
+  ; errors : string
   ; output : string list
   }
 
@@ -98,7 +98,7 @@ let getProgram name =
     (fun pdict ->
        let name = Js.Dict.get pdict "name" |> Option.bind Js.Json.decodeString in
        let code = Js.Dict.get pdict "code" |> Option.bind Js.Json.decodeString in
-       let errors = Js.Dict.get pdict "errors" |> Option.map decodeStringArray in
+       let errors = Js.Dict.get pdict "errors" |> Option.bind Js.Json.decodeString in
        let output = Js.Dict.get pdict "output" |> Option.map decodeStringArray in
        match (name, code, errors, output) with
        | (Some name, Some code, Some errors, Some output) ->
@@ -112,7 +112,7 @@ let saveProgram prog =
       (Js.Dict.fromList
          [ ("name", Js.Json.string prog.name)
          ; ("code", Js.Json.string prog.code)
-         ; ("errors", Js.Json.stringArray (Array.of_list prog.errors))
+         ; ("errors", Js.Json.string prog.errors)
          ; ("output", Js.Json.stringArray (Array.of_list prog.output))
          ]
       )
@@ -200,7 +200,7 @@ let update (model : model) = function (* These should be simple enough to be sel
     let program =
       { name = newName
       ; code = "(* New program *)\nlet x = 42\n"
-      ; errors = []
+      ; errors = ""
       ; output = []
       }
     in
@@ -228,15 +228,21 @@ let update (model : model) = function (* These should be simple enough to be sel
          let compilation = compile ocaml p.code in
          let got_code = compiled_js_code compilation in
          let got_errors = compile_error compilation in
+         let _ = Js.log compilation in
+         let _ = Js.log got_errors in
          match (got_errors, got_code) with
          | (_, Some code) ->
            let iframecode = "data:text/html;base64," ^ btoa ("<pre>" ^ code ^ "</pre>") in
-           updateProgram p.name (fun _ -> { p with output = [] })
+           updateProgram p.name (fun _ -> { p with output = [] ; errors = "" })
              { newModel with
                iframe = Some (p.name, iframecode)
              }
-         | (errors, _) ->
-           updateProgram p.name (fun _ -> { p with errors = errors }) newModel
+         | (Some errors, _) ->
+           let iframecode = "data:text/html;base64," ^ btoa ("<pre>" ^ errors ^ "</pre>") in
+           updateProgram p.name (fun _ -> { p with errors = errors })
+             { newModel with
+               iframe = Some (p.name, iframecode)
+             }
          | _ -> model
       )
     |> Option.else_ (fun _ -> model)
@@ -284,6 +290,8 @@ let viewEditor model em =
                 (Keyevent.key_decoder |> Decoder.map (fun a -> KeyPress a))
             ] []
         ]
+    ; div [ classList [ ("editor-errors", true) ] ]
+        [ text em.program.errors ]
     ; div [ classList [ ("editor-controls", true) ] ]
         [ button
             [ classList [ ("editor-control-btn", true) ]
