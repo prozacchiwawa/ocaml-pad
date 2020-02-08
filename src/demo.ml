@@ -303,7 +303,6 @@ let rec update (model : model) = function (* These should be simple enough to be
       else
         synthesizeKey (String.sub row i 1)
     in
-    let _ = Js.log (u,s,i) in
     update model keyEvent
 
   | ToSelectView ->
@@ -439,35 +438,9 @@ let runningProgram model = model.iframe |> Option.map (fun iframe -> iframe.if_i
 
 let viewEditor model em =
   div []
-    [ div [ classList [ ("editor-controls-container", true) ] ]
-        [ div [ classList [ ("editor-controls", true) ] ]
-            [ button
-                [ classList [ ("ebut",true) ; ("editor-control-btn", true) ]
-                ; onClick SaveProgram
-                ] [ text "Save" ]
-            ; button
-                [ classList [ ("ebut",true) ; ("editor-control-btn", true) ]
-                ; onClick (ExecProgram em.program.name)
-                ] [ text "Run" ]
-            ]
-        ]
-    ; div
+    [ div
         [ classList [ ("editor-pane", true) ] ]
-        [ Editing.render em.editing
-        ; textarea 
-            [ classList [ ("input-in-container", true) ]
-            ; value "_"
-            ; Vdom.prop "pattern" "^$"
-            ; Vdom.prop "readonly" "true"
-            ; Vdom.prop "maxlength" "0"
-            ; Vdom.prop "autocomplete" "off"
-            ; Vdom.prop "multiline" "true"
-            ; onWithOptions ~key:"keydown" "keydown"
-                { stopPropagation = true ; preventDefault = true }
-                (Keyevent.key_decoder |> Decoder.map (fun a -> KeyPress a))
-            ; onInput (fun t -> synthesizeKey t)
-            ] []
-        ]
+        [ Editing.render em.editing ]
     ; div [ classList [ ("editor-controls-container",true) ] ]
         [ div [ classList [ ("editor-controls", true) ] ]
             [ button [ classList [ ("kbut",true) ; ("homebut", true) ] ; onClick Home ] [ ]
@@ -519,6 +492,26 @@ let viewBreadcrumbs model =
             ; onClick ToExecView
             ]
             [ text "Runner" ]
+        ; if model.view = SelectView then
+            div [] []
+          else
+            model.codeview
+            |> Option.map
+              (fun em ->
+                 div [ classList [ ("editor-controls-container", true) ] ]
+                   [ div [ classList [ ("editor-controls", true) ] ]
+                       [ button
+                           [ classList [ ("ebut",true) ; ("editor-control-btn", true) ]
+                           ; onClick SaveProgram
+                           ] [ text "Save" ]
+                       ; button
+                           [ classList [ ("ebut",true) ; ("editor-control-btn", true) ]
+                           ; onClick (ExecProgram em.program.name)
+                           ] [ text "Run" ]
+                       ]
+                   ]
+              )
+            |> Option.else_ (fun _ -> div [] [])
         ]
     ]
 
