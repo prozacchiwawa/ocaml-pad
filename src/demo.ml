@@ -104,6 +104,7 @@ type model =
   ; codeview : editModel option
   ; programs : program StringMap.t
   ; iframe : iframeData option
+  ; runcount : int
   }
 
 let getProgram name =
@@ -168,6 +169,7 @@ let init () =
     ; codeview = None
     ; programs = programs
     ; iframe = None
+    ; runcount = 0
     }
   in
   let _ =
@@ -281,20 +283,22 @@ let update (model : model) = function (* These should be simple enough to be sel
     |> Option.else_ (fun _ -> model)
   | SaveProgram -> saveCurrentProgram model
   | ExecProgram p ->
-    let newModel = saveCurrentProgram model in
+    let newModel' = saveCurrentProgram model in
+    let newModel = { newModel' with runcount = newModel'.runcount + 1 } in
     StringFindMap.go p newModel.programs
     |> Option.map
       (fun (p : program) ->
          let compilation = compile ocaml p.code in
          let got_code = compiled_js_code compilation in
          let got_errors = compile_error compilation in
-         let _ = Js.log compilation in
-         let _ = Js.log got_errors in
          match (got_errors, got_code) with
          | (_, Some code) ->
            (* Thanks : https://michelenasti.com/2018/10/02/let-s-write-a-simple-version-of-the-require-function.html *)
            let iframecode = "data:text/html;base64," ^ btoa ("<script>window.parent.postMessage({'message':'started'}, '*'); window.addEventListener('message', function(m) { if(m.data.message === 'runme') { eval(m.data.code); } });</script>")
            in
+           let pokeCode = "exports = {};\n" ^ Libs.jslibs ^ "var _runcount = " ^ (string_of_int (model.runcount)) ^ "; require.cache = Object.create(null); //(1)\nfunction require(name) {\nif (!(name in require.cache)) {\nlet code = imports[name]; //(2)\nlet module = {exports: {}}; //(3)\nrequire.cache[name] = module; //(4)\nlet wrapper = Function(\"require, exports, module\", code); //(5)\nwrapper(require, module.exports, module); //(6)\n}\nreturn require.cache[name].exports; //(7)\n}" ^ code
+           in
+           let _ = pokeProgram shareData p.name pokeCode in
            updateProgram p.name (fun _ -> { p with output = [] ; errors = "" })
              { newModel with
                view = ExecView
@@ -302,7 +306,7 @@ let update (model : model) = function (* These should be simple enough to be sel
                  Some
                    { if_id = p.name
                    ; if_src = iframecode
-                   ; if_code = "exports = {};\n" ^ Libs.jslibs ^ "require.cache = Object.create(null); //(1)\nfunction require(name) {\nif (!(name in require.cache)) {\nlet code = imports[name]; //(2)\nlet module = {exports: {}}; //(3)\nrequire.cache[name] = module; //(4)\nlet wrapper = Function(\"require, exports, module\", code); //(5)\nwrapper(require, module.exports, module); //(6)\n}\nreturn require.cache[name].exports; //(7)\n}" ^ code
+                   ; if_code = pokeCode
                    }
              }
 

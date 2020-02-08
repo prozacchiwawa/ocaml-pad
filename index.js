@@ -8,7 +8,9 @@ ShareData.prototype.setMsgEncoder = function(f) {
 };
 ShareData.prototype.pokeProgram = function(id,c) {
     var iframe = document.getElementById(id);
-    iframe.contentWindow.postMessage({"message":"runme","code":c},"*");
+    if (iframe) {
+        iframe.contentWindow.postMessage({"message":"runme","code":c},"*");
+    }
 };
 ShareData.prototype.resizeWindow = function(id) {
     var checkSize = () => {
@@ -38,7 +40,6 @@ ShareData.prototype.resizeWindow = function(id) {
                 editorX: clientRect ? clientRect.width : 0,
                 editorY: clientRect ? clientRect.height : 0
             };
-            console.log(msg);
             app.pushMsg(shareData.encoder(msg));
         } else {
             window.setTime(checkSize, 200);
