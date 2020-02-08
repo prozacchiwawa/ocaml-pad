@@ -73,34 +73,34 @@ let keymap =
 let cancelShift = StringSet.of_list
     [ "exclamation_mark"
     ; "double_quote"
-      ; "hash"
-      ; "dollar"
-      ; "percent"
-      ; "amersand"
-      ; "left_parenthesis"
-      ; "right_parenthesis"
-      ; "underscore"
-      ; "backquote"
-      ; "star"
-      ; "plus"
-      ; "comma"
-      ; "minus"
-      ; "period"
-      ; "slash"
-      ; "caret"
-      ; "colon"
-      ; "semicolon"
-      ; "left_chevron"
-      ; "equal"
-      ; "right_chevron"
-      ; "question_mark"
-      ; "pipe"
-      ; "tilde"
-      ; "antislash"
-      ; "left_brace"
-      ; "leff_bracket"
-      ; "right_brace"
-      ; "right_bracket"
+    ; "hash"
+    ; "dollar"
+    ; "percent"
+    ; "amersand"
+    ; "left_parenthesis"
+    ; "right_parenthesis"
+    ; "underscore"
+    ; "backquote"
+    ; "star"
+    ; "plus"
+    ; "comma"
+    ; "minus"
+    ; "period"
+    ; "slash"
+    ; "caret"
+    ; "colon"
+    ; "semicolon"
+    ; "left_chevron"
+    ; "equal"
+    ; "right_chevron"
+    ; "question_mark"
+    ; "pipe"
+    ; "tilde"
+    ; "antislash"
+    ; "left_brace"
+    ; "leff_bracket"
+    ; "right_brace"
+    ; "right_bracket"
     ]
 
 type keyState =
@@ -151,16 +151,6 @@ let mapKey evt =
     else
       state
   in
-  let handleCtrlKey state =
-    if String.length (evt.key) == 1 then
-      let theCode = Char.code (String.get (evt.key) 0) in
-      if theCode < 32 then
-        { state with s = String.make 1 (Char.chr (theCode + 96)) }
-      else
-        state
-    else
-      state
-  in
   let finalizeKey state =
     let shifted =
       if state.shift then
@@ -189,7 +179,6 @@ let mapKey evt =
   |> handleLetter
   |> handleCode
   |> handleFKey
-  |> handleCtrlKey
   |> finalizeKey
 
 let accept_key evt editing =

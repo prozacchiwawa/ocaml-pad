@@ -2,7 +2,7 @@
     <head>
         <title>BS Easy</title>
         <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
         <style>
          body {
              margin: 0;
@@ -128,13 +128,15 @@
 
          .input-in-container {
              position: absolute;
-             width: 100%;
+             width: 90%;
              height: 100%;
              left: 0;
              top: 0;
              margin: 0;
              padding: 0;
-             opacity: 1%;
+             opacity: 0%;
+	           background-color: rgba(0,0,0,0);
+             border: 0;
          }
 
          .editor-controls-container {
@@ -189,6 +191,32 @@
 
          .endbut:after {
              content: "E";
+         }
+
+         .keyboard-container {
+             display: flex;
+             flex-direction: column;
+             align-items: center;
+             justify-content: center;
+         }
+
+         .keyboard-row {
+             display: flex;
+             flex-direction: row;
+             width: 100%;
+             align-items: center;
+             justify-content: center;
+         }
+
+         .keyboard-space-row {
+             min-width: 50%;
+         }
+
+         .keycap {
+             margin: 0.2rem;
+             padding: 0.3rem;
+             min-width: 1.5rem;
+             font-weight: 999;
          }
         </style>
     </head>

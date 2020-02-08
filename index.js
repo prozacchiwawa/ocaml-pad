@@ -3,6 +3,10 @@ function ShareData() {
     this.encoder = null;
 }
 
+window.doKeyEvent = function(code) {
+    console.log('keyevent',code);
+};
+
 ShareData.prototype.setMsgEncoder = function(f) {
     this.encoder = f;
 };
@@ -13,7 +17,8 @@ ShareData.prototype.pokeProgram = function(id,c) {
     }
 };
 ShareData.prototype.resizeWindow = function(id) {
-    var checkSize = () => {
+    var self = this;
+    var checkSize = function() {
         var editor = document.getElementById(id);
         if (editor) {
             var clientRect = null;
@@ -42,18 +47,18 @@ ShareData.prototype.resizeWindow = function(id) {
             };
             app.pushMsg(shareData.encoder(msg));
         } else {
-            window.setTime(checkSize, 200);
+            window.setTimeout(checkSize, 200);
         }
     };
     window.setTimeout(checkSize, 200);
 };
 
 window.shareData = new ShareData();
-window.addEventListener('message', (m) => {
+window.addEventListener('message', function(m) {
     app.pushMsg(shareData.encoder(m.data));
 });
 
-window.addEventListener('resize', (evt) => {
+window.addEventListener('resize', function(evt) {
     shareData.resizeWindow('editor');
 });
 

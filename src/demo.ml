@@ -46,6 +46,8 @@ type msg =
   | SizeReport of resizeData
   | DeleteProgram of string
 
+  | ToggleShift
+  | KeyHit of (string * string * int)
   | Home
   | End
   | LeftArrow
@@ -86,6 +88,7 @@ type program =
 type editModel =
   { editing : Editing.t
   ; program : program
+  ; lastinput : string
   }
 
 type viewKind =
@@ -105,6 +108,7 @@ type model =
   ; programs : program StringMap.t
   ; iframe : iframeData option
   ; runcount : int
+  ; shiftstate : bool
   }
 
 let getProgram name =
@@ -170,6 +174,7 @@ let init () =
     ; programs = programs
     ; iframe = None
     ; runcount = 0
+    ; shiftstate = false
     }
   in
   let _ =
@@ -245,12 +250,62 @@ let passOnKeyCode code model =
   in
   passOnKeyPress event model
 
+let synthesizeKey t =
+  if String.length t <> 0 then
+    if t >= " " then
+      let _ = Js.log t in
+      KeyPress
+        { ctrlKey = false
+        ; altKey = false
+        ; shiftKey = false
+        ; key = String.sub t ((String.length t) - 1) 1
+        ; keyCode = 0
+        }
+    else if t = "\x08" then
+      KeyPress
+        { ctrlKey = false
+        ; altKey = false
+        ; shiftKey = false
+        ; key = "\x08"
+        ; keyCode = 0
+        }
+    else if t = "\x0d" then
+      KeyPress
+        { ctrlKey = false
+        ; altKey = false
+        ; shiftKey = false
+        ; key = "\x0d"
+        ; keyCode = 0
+        }
+    else if t = "\x01" then
+      ToggleShift
+    else
+      KeyPress
+        { ctrlKey = false
+        ; altKey = false
+        ; shiftKey = false
+        ; key = t
+        ; keyCode = 0
+        }
+  else
+    Nop
 
 (* This is the central message handler, it takes the model as the first argument *)
-let update (model : model) = function (* These should be simple enough to be self-explanatory, mutate the model based on the message, easy to read and follow *)
+let rec update (model : model) = function (* These should be simple enough to be self-explanatory, mutate the model based on the message, easy to read and follow *)
   | Nop -> model
   | KeyPress evt ->
     passOnKeyPress evt model
+  | KeyHit (u,s,i) ->
+    let row = if model.shiftstate then s else u in
+    let keyEvent =
+      if String.length row <= i then
+        Nop
+      else
+        synthesizeKey (String.sub row i 1)
+    in
+    let _ = Js.log (u,s,i) in
+    update model keyEvent
+
   | ToSelectView ->
     let newModel = saveCurrentProgram model in
     { newModel with view = SelectView }
@@ -276,7 +331,7 @@ let update (model : model) = function (* These should be simple enough to be sel
     |> Option.map
       (fun p ->
          let cv =
-           { editing = Editing.init 25 13 p.name p.code ; program = p }
+           { editing = Editing.init 25 13 p.name p.code ; program = p ; lastinput = "_" }
          in
          { model with codeview = Some cv ; view = CodeView }
       )
@@ -342,6 +397,8 @@ let update (model : model) = function (* These should be simple enough to be sel
          { model with codeview = Some { cv with editing = Editing.resize rpt cv.editing } }
       )
     |> Option.else_ (fun _ -> model)
+
+  | ToggleShift -> { model with shiftstate = not model.shiftstate }
   | End -> passOnKeyCode 35 model
   | Home -> passOnKeyCode 36 model
   | LeftArrow -> passOnKeyCode 37 model
@@ -380,15 +437,6 @@ let viewSelector model =
 
 let runningProgram model = model.iframe |> Option.map (fun iframe -> iframe.if_id)
 
-let synthesizeKey t =
-  KeyPress
-    { ctrlKey = false
-    ; altKey = false
-    ; shiftKey = false
-    ; key = String.sub t ((String.length t) - 1) 1
-    ; keyCode = 0
-    }
-
 let viewEditor model em =
   div []
     [ div [ classList [ ("editor-controls-container", true) ] ]
@@ -406,14 +454,14 @@ let viewEditor model em =
     ; div
         [ classList [ ("editor-pane", true) ] ]
         [ Editing.render em.editing
-        ; input'
+        ; textarea 
             [ classList [ ("input-in-container", true) ]
-            ; type' "text"
-            ; value ""
+            ; value "_"
             ; Vdom.prop "pattern" "^$"
             ; Vdom.prop "readonly" "true"
             ; Vdom.prop "maxlength" "0"
             ; Vdom.prop "autocomplete" "off"
+            ; Vdom.prop "multiline" "true"
             ; onWithOptions ~key:"keydown" "keydown"
                 { stopPropagation = true ; preventDefault = true }
                 (Keyevent.key_decoder |> Decoder.map (fun a -> KeyPress a))
@@ -432,6 +480,7 @@ let viewEditor model em =
         ]
     ; div [ classList [ ("editor-errors", true) ] ]
         [ text em.program.errors ]
+    ; Keyevent.softKeyboard model.shiftstate (fun u s i -> KeyHit (u,s,i)) Keyevent.keyset0
     ]
 
 let viewRun model ev =
