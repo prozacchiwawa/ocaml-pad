@@ -10,3 +10,4 @@ it's mostly an experiment and lots of things can be improved.
 ```
 make BS_PLAYGROUND=<path to bucklescript/playground>
 ```
+![screenshot](https://raw.githubusercontent.com/prozacchiwawa/ocaml-pad/master/ocaml-pad.png)
