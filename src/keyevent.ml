@@ -31,8 +31,8 @@ let keyset0 =
   ; ("keyboard-top-row", "qwertyuiop", "QWERTYUIOP")
   ; ("keyboard-mid-row", "`asdfghjkl", "~ASDFGHJKL")
   ; ("keyboard-bot-row", "\x09zxcvbnm\x0d", "\x09ZXCVBNM\x0d")
-  ; ("keyboard-space-row", ";' -=[]\\\x08", ":\" _+{}|\x08")
-  ; ("keyboard-space-row", "\x01<>?\x01", "\x01,./\x01")
+  ; ("keyboard-space-row", "\x01' -=\x01", "\x01\" _+\x01")
+  ; ("keyboard-space-row", ";<>?[]\\\x08", ":,./{}|\x08")
   ]
 
 let softKeyboard shifted event keyset =
@@ -48,15 +48,15 @@ let softKeyboard shifted event keyset =
                   let cap = String.make 1 ch in
                   let capstr =
                     if cap = "\x08" then
-                      "BK"
+                      "BACKSP"
                     else if cap = "\x0d" then
-                      "RT"
+                      "RETN"
                     else if cap = "\x09" then
                       "TB"
                     else if cap = "\x01" then
                       "SH"
                     else if cap = " " then
-                      "SPACE"
+                      "~ ~ ~ ~ SPACE ~ ~ ~ ~"
                     else
                       cap
                   in

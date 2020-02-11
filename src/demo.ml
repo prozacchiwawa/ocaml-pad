@@ -54,6 +54,8 @@ type msg =
   | RightArrow
   | DownArrow
   | UpArrow
+  | PageUp
+  | PageDn
   [@@bs.deriving {accessors}] (* This is a nice quality-of-life addon from Bucklescript, it will generate function names for each constructor name, optional, but nice to cut down on code, this is unused in this example but good to have regardless *)
 
 type shareData
@@ -330,7 +332,7 @@ let rec update (model : model) = function (* These should be simple enough to be
     |> Option.map
       (fun p ->
          let cv =
-           { editing = Editing.init 25 13 p.name p.code ; program = p ; lastinput = "_" }
+           { editing = Editing.init 25 16 p.name p.code ; program = p ; lastinput = "_" }
          in
          { model with codeview = Some cv ; view = CodeView }
       )
@@ -348,9 +350,9 @@ let rec update (model : model) = function (* These should be simple enough to be
          match (got_errors, got_code) with
          | (_, Some code) ->
            (* Thanks : https://michelenasti.com/2018/10/02/let-s-write-a-simple-version-of-the-require-function.html *)
-           let iframecode = "data:text/html;base64," ^ btoa ("<script>window.parent.postMessage({'message':'started'}, '*'); window.addEventListener('message', function(m) { if(m.data.message === 'runme') { eval(m.data.code); } });</script>")
+           let iframecode = "data:text/html;base64," ^ btoa ("<script>var _runcount = " ^ (string_of_int (model.runcount)) ^ "; window.parent.postMessage({'message':'started'}, '*'); window.addEventListener('message', function(m) { if(m.data.message === 'runme') { eval(m.data.code); } });</script>")
            in
-           let pokeCode = "exports = {};\n" ^ Libs.jslibs ^ "var _runcount = " ^ (string_of_int (model.runcount)) ^ "; require.cache = Object.create(null); //(1)\nfunction require(name) {\nif (!(name in require.cache)) {\nlet code = imports[name]; //(2)\nlet module = {exports: {}}; //(3)\nrequire.cache[name] = module; //(4)\nlet wrapper = Function(\"require, exports, module\", code); //(5)\nwrapper(require, module.exports, module); //(6)\n}\nreturn require.cache[name].exports; //(7)\n}" ^ code
+           let pokeCode = "exports = {};\n" ^ Libs.jslibs ^ ";\nrequire.cache = Object.create(null); //(1)\nfunction require(name_) {\nvar nameSplit = name_.split('/');\nvar name = nameSplit[nameSplit.length - 1];\nif (!(name in require.cache)) {\nlet code = imports[name]; //(2)\nlet module = {exports: {}}; //(3)\nrequire.cache[name] = module; //(4)\nlet wrapper = Function(\"require, exports, module\", code); //(5)\nwrapper(require, module.exports, module); //(6)\n}\nconsole.log(\"require\",name,require.cache[name].exports);\nreturn require.cache[name].exports; //(7)\n}" ^ code
            in
            let _ = pokeProgram shareData p.name pokeCode in
            updateProgram p.name (fun _ -> { p with output = [] ; errors = "" })
@@ -398,6 +400,8 @@ let rec update (model : model) = function (* These should be simple enough to be
     |> Option.else_ (fun _ -> model)
 
   | ToggleShift -> { model with shiftstate = not model.shiftstate }
+  | PageUp -> passOnKeyCode 33 model
+  | PageDn -> passOnKeyCode 34 model
   | End -> passOnKeyCode 35 model
   | Home -> passOnKeyCode 36 model
   | LeftArrow -> passOnKeyCode 37 model
@@ -443,12 +447,14 @@ let viewEditor model em =
         [ Editing.render em.editing ]
     ; div [ classList [ ("editor-controls-container",true) ] ]
         [ div [ classList [ ("editor-controls", true) ] ]
-            [ button [ classList [ ("kbut",true) ; ("homebut", true) ] ; onClick Home ] [ ]
+            [ button [ classList [ ("kbut",true) ; ("pgupbut", true) ] ; onClick PageUp ] [ ]
+            ; button [ classList [ ("kbut",true) ; ("homebut", true) ] ; onClick Home ] [ ]
             ; button [ classList [ ("kbut",true) ; ("leftbut", true) ] ; onClick LeftArrow ] [ ]
             ; button [ classList [ ("kbut",true) ; ("upbut", true) ] ; onClick UpArrow ] [ ]
             ; button [ classList [ ("kbut",true) ; ("downbut", true) ] ; onClick DownArrow ] [ ]
             ; button [ classList [ ("kbut",true) ; ("rightbut", true) ] ; onClick RightArrow ] [ ]
             ; button [ classList [ ("kbut",true) ; ("endbut", true) ] ; onClick End ] [ ]
+            ; button [ classList [ ("kbut",true) ; ("pgdnbut", true) ] ; onClick PageDn ] [ ]
             ]
         ]
     ; div [ classList [ ("editor-errors", true) ] ]
