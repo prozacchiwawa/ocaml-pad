@@ -29,3 +29,5 @@ src/*.bs.js
 node_modules
 src/libs.ml
 bundle.html
+exports.js
+stdlib
